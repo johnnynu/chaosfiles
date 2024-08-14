@@ -4,14 +4,14 @@ import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 
 const LandingPage: React.FC = () => {
-  const { signIn, user } = useAuth();
+  const { signIn, isAuth, isLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user) {
+    if (isAuth && !isLoading) {
       navigate("/dashboard");
     }
-  }, [user, navigate]);
+  }, [isAuth, isLoading, navigate]);
 
   return (
     <div className="landing-page">

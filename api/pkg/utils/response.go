@@ -3,9 +3,12 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/aws/aws-lambda-go/events"
 )
+
+var ErrNotFound = errors.New("resource not found")
 
 func ResponseOK(body interface{}) (events.APIGatewayProxyResponse, error) {
 	bodyBytes, err := json.Marshal(body)
@@ -23,8 +26,12 @@ func ResponseOK(body interface{}) (events.APIGatewayProxyResponse, error) {
 }
 
 func ResponseError(err error) (events.APIGatewayProxyResponse, error) {
+	statusCode := 500
+	if errors.Is(err, ErrNotFound) {
+		statusCode = 404
+	}
 	return events.APIGatewayProxyResponse{
-		StatusCode: 500,
+		StatusCode: statusCode,
 		Body:       err.Error(),
 		Headers: map[string]string{
 			"Content-Type": "application/json",

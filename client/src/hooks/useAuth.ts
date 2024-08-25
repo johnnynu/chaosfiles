@@ -20,7 +20,7 @@ export const useAuth = () => {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await signOut({ global: true });
     } catch (error) {
       console.error("Error signing out:", error);
     }

@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 
 const Dashboard: React.FC = () => {
   const { user, signOut } = useAuth();
+
   return (
     <div className="sign-in-container">
       <h2>{user && `Welcome to your dashboard, ${user.username}!`}</h2>

@@ -31,13 +31,13 @@ type User struct {
 }
 
 type File struct {
-	FileID    string `dynamodbav:"file_id"`
-	UserID    string `dynamodbav:"user_id"`
-	FileName  string `dynamodbav:"file_name"`
-	FileSize  int64  `dynamodbav:"file_size"`
-	FileType  string `dynamodbav:"file_type"`
-	CreatedAt string `dynamodbav:"created_at"`
-	UpdatedAt string `dynamodbav:"updated_at"`
+	FileID    string `dynamodbav:"FileID"`
+	UserID    string `dynamodbav:"UserID"`
+	FileName  string `dynamodbav:"FileName"`
+	FileSize  int64  `dynamodbav:"FileSize"`
+	FileType  string `dynamodbav:"FileType"`
+	CreatedAt string `dynamodbav:"CreatedAt"`
+	UpdatedAt string `dynamodbav:"UpdatedAt"`
 }
 
 func CreateUser(ctx context.Context, user User) error {
@@ -81,4 +81,101 @@ func GetUser(ctx context.Context, uid string) (*User, error) {
 	}
 
 	return &user, nil
+}
+
+func CreateFile(ctx context.Context, file File) error {
+	item, err := attributevalue.MarshalMap(file)
+	if err != nil {
+		return fmt.Errorf("failed to marshal file: %v", err)
+	}
+
+	// Log the marshalled item
+	log.Printf("Marshalled item: %+v", item)
+
+	_, err = dbClient.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String("FileMetadata"), // Make sure this matches your actual table name
+		Item:      item,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to create file in DynamoDB: %v", err)
+	}
+
+	return nil
+}
+
+func GetFile(ctx context.Context, fileID string) (*File, error) {
+	res, err := dbClient.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String("FileMetadata"),
+		Key: map[string]types.AttributeValue{
+			"FileID": &types.AttributeValueMemberS{Value: fileID},
+		},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file: %v", err)
+	}
+
+	if res.Item == nil {
+		return nil, nil
+	}
+
+	var file File
+	err = attributevalue.UnmarshalMap(res.Item, &file)
+	if err != nil {
+		return nil, err
+	}
+
+	return &file, nil
+}
+
+func ListUserFiles(ctx context.Context, userID string) ([]File, error) {
+	input := &dynamodb.QueryInput{
+		TableName: aws.String("FileMetadata"),
+		IndexName: aws.String("UserID-index"),
+		KeyConditionExpression: aws.String("UserID = :uid"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":uid": &types.AttributeValueMemberS{Value: userID},
+		},
+	}
+
+	res, err := dbClient.Query(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user files: %v", err)
+	}
+
+	var files []File
+	err = attributevalue.UnmarshalListOfMaps(res.Items, &files)
+	if err != nil {
+		return nil, fmt.Errorf("failed the unmarshal files: %v", err)
+	}
+
+	return files, nil
+}
+
+func DeleteFile(ctx context.Context, fileID string, userID string) error {
+	file, err := GetFile(ctx, fileID)
+	if err != nil {
+		return fmt.Errorf("failed to get file: %v", err)
+	}
+	if file == nil {
+		return fmt.Errorf("file not found")
+	}
+
+	if file.UserID != userID {
+		return fmt.Errorf("unauthorized: file does not belong to the user")
+	}
+
+	_, err = dbClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String("FileMetadata"),
+		Key: map[string]types.AttributeValue{
+			"FileID": &types.AttributeValueMemberS{Value: fileID},
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to delete file: %v", err)
+	}
+
+	return nil
 }

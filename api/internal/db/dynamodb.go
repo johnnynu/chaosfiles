@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
@@ -151,6 +152,37 @@ func ListUserFiles(ctx context.Context, userID string) ([]File, error) {
 	}
 
 	return files, nil
+}
+
+func UpdateFile(ctx context.Context, file File) error {
+	update := expression.Set(expression.Name("FileSize"), expression.Value(file.FileSize)).
+		Set(expression.Name("FileType"), expression.Value(file.FileType)).
+		Set(expression.Name("UpdatedAt"), expression.Value(file.UpdatedAt))
+
+	expr, err := expression.NewBuilder().WithUpdate(update).Build()
+	if err != nil {
+		log.Printf("couldnt build expression for update: %v\n", err)
+		return err
+	}
+
+	_, err = dbClient.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String("FileMetadata"),
+		Key: map[string]types.AttributeValue{
+			"FileID": &types.AttributeValueMemberS{Value: file.FileID},
+		},
+		ExpressionAttributeNames: expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		UpdateExpression: expr.Update(),
+		ReturnValues: types.ReturnValueUpdatedNew,
+	})
+
+	if err != nil {
+		log.Printf("couldnt update file %v: %v", file.FileID, err)
+		return err
+	}
+
+	log.Printf("successfully updated file metadata for fileID: %s", file.FileID)
+	return nil
 }
 
 func DeleteFile(ctx context.Context, fileID string, userID string) error {

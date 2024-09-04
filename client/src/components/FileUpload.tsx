@@ -6,13 +6,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 
+const MULTIPART_THRESHOLD = 100 * 1024 * 1024; // 100 MB threshold for multipart upload
+const LESS_THAN_1GB = 1024 * 1024 * 1024;
+const CHUNKS_10MB = 10 * 1024 * 1024;
+const BETWEEN_1GB_AND_10GB = 10 * 1024 * 1024 * 1024;
+const CHUNKS_50MB = 50 * 1024 * 1024;
+const CHUNKS_100MB = 100 * 1024 * 1024;
+
 const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
   OnUploadComplete,
 }) => {
   const { getAuthToken } = useAuth();
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,42 +34,27 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
     fileInputRef.current?.click();
   };
 
+  const getChunkSize = (fileSize: number): number => {
+    if (fileSize < LESS_THAN_1GB) {
+      // Less than 1 GB
+      return CHUNKS_10MB; // 10 MB chunks
+    } else if (fileSize < BETWEEN_1GB_AND_10GB) {
+      return CHUNKS_50MB;
+    } else {
+      return CHUNKS_100MB;
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) return;
 
     try {
-      const token = await getAuthToken();
-
-      // Get pre signed url
-      console.log("file type: ", selectedFile.type);
-      const response = await axios.post(
-        "https://4j1h7lzpf5.execute-api.us-east-2.amazonaws.com/dev/upload-url",
-        {
-          fileName: selectedFile.name,
-          fileType: selectedFile.type || "application/octet-stream",
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      const { uploadUrl, fileID } = response.data;
-
-      // upload file to s3
-      await axios.put(uploadUrl, selectedFile, {
-        headers: { "Content-Type": selectedFile.type },
-        onUploadProgress: (progressEvent: AxiosProgressEvent) => {
-          const percentCompleted = progressEvent.total
-            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            : 0;
-          setUploadProgress(percentCompleted);
-        },
-      });
-
-      setUploadProgress(0);
+      if (selectedFile.size < MULTIPART_THRESHOLD) {
+        await handleSinglePartUpload();
+      } else {
+        await handleMultipartUpload();
+      }
+      setUploadProgress(100);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       OnUploadComplete();
@@ -76,6 +68,110 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
         setError("Upload failed: An unexpected error occurred");
       }
     }
+  };
+
+  const handleSinglePartUpload = async () => {
+    const token = await getAuthToken();
+
+    // Get pre signed url
+    const response = await axios.post(
+      "https://4j1h7lzpf5.execute-api.us-east-2.amazonaws.com/dev/upload-url",
+      {
+        fileName: selectedFile?.name,
+        fileType: selectedFile?.type || "application/octet-stream",
+        fileSize: selectedFile?.size,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const { uploadUrl, fileID } = response.data;
+
+    // upload file to s3
+    await axios.put(uploadUrl, selectedFile, {
+      headers: { "Content-Type": selectedFile?.type },
+      onUploadProgress: (progressEvent: AxiosProgressEvent) => {
+        const percentCompleted = progressEvent.total
+          ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          : 0;
+        setUploadProgress(percentCompleted);
+      },
+    });
+
+    setUploadProgress(0);
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    OnUploadComplete();
+  };
+
+  const handleMultipartUpload = async () => {
+    if (!selectedFile) return;
+
+    const token = await getAuthToken();
+    const chunkSize = getChunkSize(selectedFile.size);
+
+    const response = await axios.post(
+      "https://4j1h7lzpf5.execute-api.us-east-2.amazonaws.com/dev/upload-url",
+      {
+        fileName: selectedFile.name,
+        fileType: selectedFile.type || "application/octet-stream",
+        fileSize: selectedFile.size,
+        chunkSize: chunkSize,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const { uploadId, partUrls, fileID } = response.data;
+
+    const chunks = Math.ceil(selectedFile.size / chunkSize);
+    const uploadPromises = [];
+
+    for (let i = 0; i < chunks; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, selectedFile.size);
+      const chunk = selectedFile.slice(start, end);
+
+      const uploadPromise = axios.put(partUrls[i], chunk, {
+        headers: { "Content-Type": "application/octet-stream" },
+        onUploadProgress: (progressEvent: AxiosProgressEvent) => {
+          const percentCompleted = progressEvent.total
+            ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            : 0;
+          setUploadProgress((prev) => prev + percentCompleted / chunks);
+        },
+      });
+
+      uploadPromises.push(uploadPromise);
+    }
+
+    const uploadResults = await Promise.all(uploadPromises);
+
+    await axios.post(
+      "https://4j1h7lzpf5.execute-api.us-east-2.amazonaws.com/dev/complete-upload",
+      {
+        fileID,
+        uploadId,
+        parts: uploadResults.map((result, index) => ({
+          ETag: result.headers.etag,
+          PartNumber: index + 1,
+        })),
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
   };
 
   return (
@@ -103,7 +199,7 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
         <p className="text-sm text-gray-500 mb-2">
           Select or Drag & Drop your files for upload
         </p>
-        <p className="text-xs text-gray-400 mb-4">File size limit: 2 GB</p>
+        <p className="text-xs text-gray-400 mb-4">File size limit: 1 TB</p>
         <Input
           type="file"
           ref={fileInputRef}

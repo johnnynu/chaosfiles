@@ -39,6 +39,7 @@ func GenerateDownloadURL(ctx context.Context, request events.APIGatewayProxyRequ
 	presignedUrl, err := presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String("chaosfiles-filestorage"),
 		Key: aws.String(fileID),
+		ResponseContentType: aws.String(file.FileType),
 	}, s3.WithPresignExpires(time.Minute * 15))
 
 	if err != nil {
@@ -49,5 +50,6 @@ func GenerateDownloadURL(ctx context.Context, request events.APIGatewayProxyRequ
 	return utils.ResponseOK(map[string]string{
 		"downloadUrl": presignedUrl.URL,
 		"fileName": file.FileName,
+		"contentType": file.FileType,
 	})
 }

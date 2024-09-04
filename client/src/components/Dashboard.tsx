@@ -70,12 +70,13 @@ const Dashboard = () => {
         }
       );
 
-      const { downloadUrl, fileName } = response.data;
+      const { downloadUrl, fileName, contentType } = response.data;
 
       // tempo anchor element to trigger the download
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = fileName;
+      link.type = contentType;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -150,10 +151,7 @@ const Dashboard = () => {
               <TableCell>{file.FileSize}</TableCell>
               <TableCell>{new Date(file.CreatedAt).toLocaleString()}</TableCell>
               <TableCell>
-                <FileActionsMenu
-                  fileID={file.FileID}
-                  fileName={file.FileName}
-                />
+                <FileActionsMenu fileID={file.FileID} />
               </TableCell>
             </TableRow>
           ))}
@@ -162,13 +160,7 @@ const Dashboard = () => {
     </div>
   );
 
-  const FileActionsMenu = ({
-    fileID,
-    fileName,
-  }: {
-    fileID: string;
-    fileName: string;
-  }) => (
+  const FileActionsMenu = ({ fileID }: { fileID: string }) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost">...</Button>

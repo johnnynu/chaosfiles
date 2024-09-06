@@ -5,15 +5,9 @@ import "./App.css";
 import LandingPage from "./components/Landing";
 import Dashboard from "./components/Dashboard";
 import { Provider } from "jotai";
+import FileManager from "./components/FileManager";
 
 const AppRoutes = () => {
-  /*
-  const { signOut } = useAuth();
-
-  useEffect(() => {
-    signOut();
-  }, [signOut]);
-*/
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
@@ -22,6 +16,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/files"
+        element={
+          <ProtectedRoute>
+            <FileManager />
           </ProtectedRoute>
         }
       />

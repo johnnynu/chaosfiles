@@ -18,15 +18,13 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
 }) => {
   const { getAuthToken } = useAuth();
   const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setError(null);
+    if (event.target.files) {
+      setSelectedFiles(Array.from(event.target.files));
     }
   };
 
@@ -46,16 +44,25 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     try {
-      if (selectedFile.size < MULTIPART_THRESHOLD) {
-        await handleSinglePartUpload();
-      } else {
-        await handleMultipartUpload();
+      const token = await getAuthToken();
+
+      if (!token) {
+        setError("Failed to get auth token. Please try logging in again.");
+        return;
+      }
+
+      for (const file of selectedFiles) {
+        if (file.size < MULTIPART_THRESHOLD) {
+          await handleSinglePartUpload(file, token);
+        } else {
+          await handleMultipartUpload(file, token);
+        }
       }
       setUploadProgress(100);
-      setSelectedFile(null);
+      setSelectedFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       OnUploadComplete();
     } catch (error) {
@@ -70,16 +77,14 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
     }
   };
 
-  const handleSinglePartUpload = async () => {
-    const token = await getAuthToken();
-
+  const handleSinglePartUpload = async (file: File, token: string) => {
     // Get pre signed url
     const response = await axios.post(
       "https://4j1h7lzpf5.execute-api.us-east-2.amazonaws.com/dev/upload-url",
       {
-        fileName: selectedFile?.name,
-        fileType: selectedFile?.type || "application/octet-stream",
-        fileSize: selectedFile?.size,
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        fileSize: file.size,
       },
       {
         headers: {
@@ -92,8 +97,8 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
     const { uploadUrl, fileID } = response.data;
 
     // upload file to s3
-    await axios.put(uploadUrl, selectedFile, {
-      headers: { "Content-Type": selectedFile?.type },
+    await axios.put(uploadUrl, file, {
+      headers: { "Content-Type": file.type },
       onUploadProgress: (progressEvent: AxiosProgressEvent) => {
         const percentCompleted = progressEvent.total
           ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -103,23 +108,19 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
     });
 
     setUploadProgress(0);
-    setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     OnUploadComplete();
   };
 
-  const handleMultipartUpload = async () => {
-    if (!selectedFile) return;
-
-    const token = await getAuthToken();
-    const chunkSize = getChunkSize(selectedFile.size);
+  const handleMultipartUpload = async (file: File, token: string) => {
+    const chunkSize = getChunkSize(file.size);
 
     const response = await axios.post(
       "https://4j1h7lzpf5.execute-api.us-east-2.amazonaws.com/dev/upload-url",
       {
-        fileName: selectedFile.name,
-        fileType: selectedFile.type || "application/octet-stream",
-        fileSize: selectedFile.size,
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        fileSize: file.size,
         chunkSize: chunkSize,
       },
       {
@@ -132,13 +133,13 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
 
     const { uploadId, partUrls, fileID } = response.data;
 
-    const chunks = Math.ceil(selectedFile.size / chunkSize);
+    const chunks = Math.ceil(file.size / chunkSize);
     const uploadPromises = [];
 
     for (let i = 0; i < chunks; i++) {
       const start = i * chunkSize;
-      const end = Math.min(start + chunkSize, selectedFile.size);
-      const chunk = selectedFile.slice(start, end);
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = file.slice(start, end);
 
       const uploadPromise = axios.put(partUrls[i], chunk, {
         headers: { "Content-Type": "application/octet-stream" },
@@ -206,6 +207,7 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
           onChange={handleFileSelect}
           className="hidden"
           id="file-upload"
+          multiple
         />
         <label htmlFor="file-upload">
           <span className="inline-block">
@@ -214,20 +216,23 @@ const FileUpload: React.FC<{ OnUploadComplete: () => void }> = ({
             </Button>
           </span>
         </label>
-        {selectedFile && (
+        {selectedFiles.length > 0 && (
           <div className="mt-4 text-center">
-            <p>Selected file: {selectedFile.name}</p>
-            <p>Size: {selectedFile.size} bytes</p>
+            <p>
+              Selected files:{" "}
+              {selectedFiles.map((file) => file.name).join(", ")}
+            </p>
             <Button onClick={handleUpload} className="mt-2">
               Upload
             </Button>
           </div>
         )}
-        {uploadProgress > 0 && (
-          <div className="w-full mt-4">
-            <Progress value={uploadProgress} className="w-full" />
+        {Object.entries(uploadProgress).map(([fileName, progress]) => (
+          <div key={fileName} className="w-full mt-4">
+            <p>{fileName}</p>
+            <Progress value={progress} className="w-full" />
           </div>
-        )}
+        ))}
       </CardContent>
     </Card>
   );

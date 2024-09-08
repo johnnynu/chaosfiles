@@ -64,18 +64,16 @@ const FileManager: React.FC = () => {
         }
       );
 
-      const { downloadUrl, fileName, contentType } = response.data;
+      const { downloadUrl } = response.data;
 
-      // tempo anchor element to trigger the download
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = fileName;
-      link.type = contentType;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      window.open(downloadUrl, "_blank");
     } catch (error) {
       console.error("Failed to download file: ", error);
+      toast({
+        title: "Error",
+        description: "Failed to download file. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -142,7 +140,9 @@ const FileManager: React.FC = () => {
           {files.map((file) => (
             <TableRow key={file.FileID}>
               <TableCell>{file.FileName}</TableCell>
-              <TableCell>{file.FileSize}</TableCell>
+              <TableCell>
+                {(file.FileSize / (1024 * 1024)).toFixed(2)} MB
+              </TableCell>
               <TableCell>{new Date(file.CreatedAt).toLocaleString()}</TableCell>
               <TableCell>
                 <FileActionsMenu fileID={file.FileID} />

@@ -55,6 +55,68 @@ D --> H
 C --> I
 ```
 
+## Architecture Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant Cognito
+    participant API Gateway
+    participant Lambda
+    participant DynamoDB
+    participant S3
+
+    User->>Frontend: Access ChaosFiles web app
+    Frontend->>Cognito: Initiate authentication
+    Cognito->>Frontend: Return user token
+    Frontend->>API Gateway: Request user files (with token)
+    API Gateway->>Lambda: Invoke Lambda function
+    Lambda->>Cognito: Verify user token
+    Cognito->>Lambda: Token valid
+    Lambda->>DynamoDB: Query user files metadata
+    DynamoDB->>Lambda: Return files metadata
+    Lambda->>S3: Get file preview URLs
+    S3->>Lambda: Return preview URLs
+    Lambda->>API Gateway: Return files metadata and preview URLs
+    API Gateway->>Frontend: Return response
+    Frontend->>User: Display files and previews
+
+    User->>Frontend: Upload new file
+    Frontend->>API Gateway: Initiate upload (with token)
+    API Gateway->>Lambda: Invoke upload Lambda
+    Lambda->>S3: Initiate multipart upload
+    S3->>Lambda: Return upload ID
+    Lambda->>API Gateway: Return upload ID and signed URLs
+    API Gateway->>Frontend: Return upload info
+    Frontend->>S3: Upload file chunks
+    Frontend->>API Gateway: Complete upload
+    API Gateway->>Lambda: Invoke completion Lambda
+    Lambda->>S3: Complete multipart upload
+    Lambda->>DynamoDB: Store file metadata
+    Lambda->>API Gateway: Confirm upload complete
+    API Gateway->>Frontend: Upload successful
+    Frontend->>User: Display uploaded file
+
+    User->>Frontend: Search files
+    Frontend->>API Gateway: Send search query (with token)
+    API Gateway->>Lambda: Invoke search Lambda
+    Lambda->>DynamoDB: Get file metadata for search results
+    DynamoDB->>Lambda: Return file metadata
+    Lambda->>API Gateway: Return search results with metadata
+    API Gateway->>Frontend: Return search results
+    Frontend->>User: Display search results
+
+    User->>Frontend: Delete file
+    Frontend->>API Gateway: Send delete request (with token and file ID)
+    API Gateway->>Lambda: Invoke delete Lambda
+    Lambda->>S3: Delete file
+    Lambda->>DynamoDB: Delete file metadata
+    Lambda->>API Gateway: Confirm file deletion
+    API Gateway->>Frontend: Deletion successful
+    Frontend->>User: Remove deleted file from view
+```
+
 ## Getting Started
 
 To use ChaosFiles, simply visit our website at [https://d358wcpg4x8g95.cloudfront.net](https://d358wcpg4x8g95.cloudfront.net).

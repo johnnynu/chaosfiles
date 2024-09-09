@@ -23,6 +23,36 @@ The ChaosFiles architecture leverages several AWS services to provide a scalable
 - Amazon API Gateway for RESTful APIs
 - Amazon CloudFront for content delivery
 
+## Architecture Diagram
+
+graph LR
+
+subgraph Frontend
+A[React.js + Vite + TypeScript] --> B[S3 + CloudFront]
+end
+
+subgraph Backend
+C[API Gateway] --> D[Lambda Functions]
+end
+
+subgraph Database
+F[DynamoDB]
+end
+
+subgraph Storage
+H[S3]
+end
+
+subgraph Authentication
+I[Amazon Cognito]
+end
+
+A --> I
+A --> C
+D --> F
+D --> H
+C --> I
+
 Please refer to the architecture diagrams in the `docs/architecture` folder for a visual representation of the system.
 
 ## Getting Started

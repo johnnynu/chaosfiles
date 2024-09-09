@@ -25,6 +25,7 @@ The ChaosFiles architecture leverages several AWS services to provide a scalable
 
 ## Architecture Diagram
 
+```mermaid
 graph LR
 
 subgraph Frontend
@@ -52,8 +53,7 @@ A --> C
 D --> F
 D --> H
 C --> I
-
-Please refer to the architecture diagrams in the `docs/architecture` folder for a visual representation of the system.
+```
 
 ## Getting Started
 

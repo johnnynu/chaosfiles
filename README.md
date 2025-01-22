@@ -14,7 +14,7 @@ Untitled is a scalable and secure file sharing platform built using modern web t
 
 ## Architecture
 
-The ChaosFiles architecture leverages several AWS services to provide a scalable and robust file sharing solution:
+The architecture leverages several AWS services to provide a scalable and robust file sharing solution:
 
 - Amazon Cognito for user authentication and authorization
 - Amazon S3 for file storage
@@ -119,13 +119,12 @@ sequenceDiagram
 
 ## Getting Started
 
-To use ChaosFiles, simply visit our website at [https://d358wcpg4x8g95.cloudfront.net](https://d358wcpg4x8g95.cloudfront.net).
+To use Untitled, simply visit our website at [https://d358wcpg4x8g95.cloudfront.net](https://d358wcpg4x8g95.cloudfront.net).
 
 ## Future Work
 - Implement use case for network disconnects while uploading
 - Add pagination for when users have a large amount of files
 - Optimize file upload and download performance (more efficient file chunking strategy, client-side file compression)
-- Implement AWS OpenSearch for powerful search
 - Enhance file preview feature
 
 ## License

@@ -1,6 +1,6 @@
-# Untitled
+# ChaosFiles
 
-Untitled is a scalable and secure file sharing platform built using modern web technologies and AWS services. It allows users to easily upload, manage, and share files with others.
+Chaosfiles is a scalable and secure file sharing platform built using modern web technologies and AWS services. It allows users to easily upload, manage, and share files with others.
 
 ## Features
 
@@ -119,7 +119,7 @@ sequenceDiagram
 
 ## Getting Started
 
-To use Untitled, simply visit our website at [https://d358wcpg4x8g95.cloudfront.net](https://d358wcpg4x8g95.cloudfront.net).
+To use ChaosFiles, simply visit our website at [https://d358wcpg4x8g95.cloudfront.net](https://d358wcpg4x8g95.cloudfront.net).
 
 ## Future Work
 - Implement use case for network disconnects while uploading
